@@ -53,10 +53,10 @@ output "s3_bucket_arn" {
   description = "ARN of origin S3 bucket"
 }
 
-output "logs" {
-  value       = module.logs
-  description = "Log bucket resource"
-}
+#output "logs" {
+#  value       = module.logs
+#  description = "Log bucket resource"
+#}
 
 output "aliases" {
   value       = var.aliases

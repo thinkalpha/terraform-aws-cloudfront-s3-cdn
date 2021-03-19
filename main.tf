@@ -128,7 +128,7 @@ resource "aws_s3_bucket" "origin" {
     for_each = var.access_log_bucket_name != "" ? [1] : []
     content {
       target_bucket = var.access_log_bucket_name
-      target_prefix = "logs/${module.this.id}/"
+      target_prefix = var.access_log_bucket_prefix
     }
   }
 
@@ -167,20 +167,20 @@ resource "aws_s3_bucket_public_access_block" "origin" {
   depends_on = [aws_s3_bucket_policy.default]
 }
 
-module "logs" {
-  source                   = "cloudposse/s3-log-storage/aws"
-  version                  = "0.20.0"
-  enabled                  = var.logging_enabled
-  attributes               = compact(concat(module.this.attributes, var.extra_logs_attributes))
-  lifecycle_prefix         = var.log_prefix
-  standard_transition_days = var.log_standard_transition_days
-  glacier_transition_days  = var.log_glacier_transition_days
-  expiration_days          = var.log_expiration_days
-  force_destroy            = var.origin_force_destroy
-  versioning_enabled       = var.log_versioning_enabled
-
-  context = module.this.context
-}
+#module "logs" {
+#  source                   = "cloudposse/s3-log-storage/aws"
+#  version                  = "0.20.0"
+#  enabled                  = var.logging_enabled
+#  attributes               = compact(concat(module.this.attributes, var.extra_logs_attributes))
+#  lifecycle_prefix         = var.log_prefix
+#  standard_transition_days = var.log_standard_transition_days
+#  glacier_transition_days  = var.log_glacier_transition_days
+#  expiration_days          = var.log_expiration_days
+#  force_destroy            = var.origin_force_destroy
+#  versioning_enabled       = var.log_versioning_enabled
+#
+#  context = module.this.context
+#}
 
 data "aws_s3_bucket" "selected" {
   bucket = local.bucket == "" ? var.static_s3_bucket : local.bucket
@@ -218,8 +218,8 @@ resource "aws_cloudfront_distribution" "default" {
     for_each = var.logging_enabled ? ["true"] : []
     content {
       include_cookies = var.log_include_cookies
-      bucket          = module.logs.bucket_domain_name
-      prefix          = var.log_prefix
+      bucket          = var.cf_log_bucket
+      prefix          = var.cf_log_prefix
     }
   }
 
@@ -251,6 +251,18 @@ resource "aws_cloudfront_distribution" "default" {
       content {
         name  = custom_header.value["name"]
         value = custom_header.value["value"]
+      }
+    }
+  }
+
+  dynamic "origin" {
+    for_each = var.s3_origins
+    content {
+      domain_name = origin.value.domain_name
+      origin_id   = origin.value.origin_id
+      origin_path = lookup(origin.value, "origin_path", "")
+      s3_origin_config {
+        origin_access_identity = lookup(origin.value.s3_origin_config, "origin_access_identity", "")
       }
     }
   }

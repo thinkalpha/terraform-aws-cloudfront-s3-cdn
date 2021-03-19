@@ -107,7 +107,13 @@ variable "log_include_cookies" {
   description = "Include cookies in access logs"
 }
 
-variable "log_prefix" {
+variable "cf_log_bucket" {
+  type        = string
+  default     = ""
+  description = "Path of logs in S3 bucket"
+}
+
+variable "cf_log_prefix" {
   type        = string
   default     = ""
   description = "Path of logs in S3 bucket"
@@ -404,6 +410,23 @@ variable "custom_origins" {
   description = "One or more custom origins for this distribution (multiples allowed). See documentation for configuration options description https://www.terraform.io/docs/providers/aws/r/cloudfront_distribution.html#origin-arguments"
 }
 
+variable "s3_origins" {
+  type = list(object({
+    domain_name = string
+    origin_id   = string
+    origin_path = string
+    s3_origin_config = object({
+      origin_access_identity = string
+    })
+  }))
+  default     = []
+  description = <<DESCRIPTION
+A list of S3 origins (for S3 websites use custom_origins) for this distribution.
+See the Terraform documentation for configuration options
+https://www.terraform.io/docs/providers/aws/r/cloudfront_distribution.html#origin-arguments
+DESCRIPTION
+}
+
 variable "website_enabled" {
   type        = bool
   default     = false
@@ -451,3 +474,10 @@ variable "access_log_bucket_name" {
   default     = ""
   description = "Name of the S3 bucket where s3 access log will be sent to"
 }
+
+variable "access_log_bucket_prefix" {
+  type        = string
+  default     = ""
+}
+
+
