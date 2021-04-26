@@ -18,20 +18,14 @@ variable "acm_certificate_arn" {
 
 variable "minimum_protocol_version" {
   type        = string
-  description = "Cloudfront TLS minimum protocol version"
-  default     = "TLSv1"
+  description = "Cloudfront TLS minimum protocol version. See [Supported protocols and ciphers between viewers and CloudFront](https://docs.aws.amazon.com/AmazonCloudFront/latest/DeveloperGuide/secure-connections-supported-viewer-protocols-ciphers.html#secure-connections-supported-ciphers) for more information."
+  default     = "TLSv1.2_2019"
 }
 
 variable "aliases" {
   type        = list(string)
   description = "List of FQDN's - Used to set the Alternate Domain Names (CNAMEs) setting on Cloudfront"
   default     = []
-}
-
-variable "use_regional_s3_endpoint" {
-  type        = bool
-  description = "When set to 'true' the s3 origin_bucket will use the regional endpoint address instead of the global endpoint address"
-  default     = false
 }
 
 variable "additional_bucket_policy" {
@@ -48,8 +42,8 @@ variable "override_origin_bucket_policy" {
 
 variable "origin_bucket" {
   type        = string
-  default     = ""
-  description = "Origin S3 bucket name"
+  default     = null
+  description = "Name of an existing S3 bucket to use as the origin. If this is not provided, it will create a new s3 bucket using `var.name` and other context related inputs"
 }
 
 variable "origin_path" {
@@ -63,12 +57,6 @@ variable "origin_force_destroy" {
   type        = bool
   default     = false
   description = "Delete all objects from the bucket so that the bucket can be destroyed without error (e.g. `true` or `false`)"
-}
-
-variable "bucket_domain_format" {
-  type        = string
-  default     = "%s.s3.amazonaws.com"
-  description = "Format of bucket domain name"
 }
 
 variable "compress" {
@@ -141,6 +129,12 @@ variable "forward_query_string" {
   type        = bool
   default     = false
   description = "Forward query strings to the origin that is associated with this cache behavior"
+}
+
+variable "query_string_cache_keys" {
+  type        = list(string)
+  description = "When Forward query strings is enabled, only the query string keys listed in this argument are cached"
+  default     = []
 }
 
 variable "cors_allowed_headers" {
@@ -267,21 +261,6 @@ variable "dns_alias_enabled" {
   description = "Create a DNS alias for the CDN. Requires `parent_zone_id` or `parent_zone_name`"
 }
 
-variable "static_s3_bucket" {
-  type    = string
-  default = "aws-cli"
-
-  description = <<DOC
-aws-cli is a bucket owned by amazon that will perminantly exist.
-It allows for the data source to be called during the destruction process without failing.
-It doesn't get used for anything else, this is a safe workaround for handling the fact that
-if a data source like the one `aws_s3_bucket.selected` gets an error, you can't continue the terraform process
-which also includes the 'destroy' command, where is doesn't even need this data source!
-Don't change this bucket name, it's a variable so that we can provide this description.
-And this works around a problem that is an edge case.
-DOC
-}
-
 variable "custom_error_response" {
   # http://docs.aws.amazon.com/AmazonCloudFront/latest/DeveloperGuide/custom-error-pages.html#custom-error-pages-procedure
   # https://www.terraform.io/docs/providers/aws/r/cloudfront_distribution.html#custom-error-response-arguments
@@ -372,6 +351,8 @@ variable "ordered_cache" {
     forward_query_string  = bool
     forward_header_values = list(string)
     forward_cookies       = string
+
+    trusted_key_groups   = list(string)
 
     lambda_function_association = list(object({
       event_type   = string
@@ -475,9 +456,15 @@ variable "access_log_bucket_name" {
   description = "Name of the S3 bucket where s3 access log will be sent to"
 }
 
-variable "access_log_bucket_prefix" {
-  type        = string
-  default     = ""
+# mike
+#variable "access_log_bucket_prefix" {
+#  type        = string
+#  default     = ""
+#}
+# mike
+
+variable "distribution_enabled" {
+  type        = bool
+  default     = true
+  description = "Set to `true` if you want CloudFront to begin processing requests as soon as the distribution is created, or to false if you do not want CloudFront to begin processing requests after the distribution is created."
 }
-
-
