@@ -380,6 +380,8 @@ variable "ordered_cache" {
       lambda_arn   = string
     }))
 
+    trusted_key_groups  = list(string)
+
     function_association = list(object({
       event_type   = string
       function_arn = string
