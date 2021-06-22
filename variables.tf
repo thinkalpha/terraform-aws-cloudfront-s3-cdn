@@ -417,23 +417,6 @@ variable "s3_origins" {
     EOT
 }
 
-variable "s3_origins" {
-  type = list(object({
-    domain_name = string
-    origin_id   = string
-    origin_path = string
-    s3_origin_config = object({
-      origin_access_identity = string
-    })
-  }))
-  default     = []
-  description = <<DESCRIPTION
-A list of S3 origins (for S3 websites use custom_origins) for this distribution.
-See the Terraform documentation for configuration options
-https://www.terraform.io/docs/providers/aws/r/cloudfront_distribution.html#origin-arguments
-DESCRIPTION
-}
-
 variable "website_enabled" {
   type        = bool
   default     = false
