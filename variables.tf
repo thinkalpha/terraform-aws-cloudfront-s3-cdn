@@ -128,12 +128,12 @@ variable "log_expiration_days" {
 variable "forward_query_string" {
   type        = bool
   default     = false
-  description = "Forward query strings to the origin that is associated with this cache behavior"
+  description = "Forward query strings to the origin that is associated with this cache behavior (incompatible with `cache_policy_id`)"
 }
 
 variable "query_string_cache_keys" {
   type        = list(string)
-  description = "When Forward query strings is enabled, only the query string keys listed in this argument are cached"
+  description = "When `forward_query_string` is enabled, only the query string keys listed in this argument are cached (incompatible with `cache_policy_id`)"
   default     = []
 }
 
@@ -175,7 +175,7 @@ variable "forward_cookies" {
 
 variable "forward_header_values" {
   type        = list(string)
-  description = "A list of whitelisted header values to forward to the origin"
+  description = "A list of whitelisted header values to forward to the origin (incompatible with `cache_policy_id`)"
   default     = ["Access-Control-Request-Headers", "Access-Control-Request-Method", "Origin"]
 }
 
@@ -187,7 +187,7 @@ variable "price_class" {
 
 variable "viewer_protocol_policy" {
   type        = string
-  description = "allow-all, redirect-to-https"
+  description = "Limit the protocol users can use to access content. One of `allow-all`, `https-only`, or `redirect-to-https`"
   default     = "redirect-to-https"
 }
 
@@ -201,6 +201,15 @@ variable "cached_methods" {
   type        = list(string)
   default     = ["GET", "HEAD"]
   description = "List of cached methods (e.g. GET, PUT, POST, DELETE, HEAD)"
+}
+
+variable "cache_policy_id" {
+  type        = string
+  default     = null
+  description = <<-EOT
+    The unique identifier of the existing cache policy to attach to the default cache behavior.
+    If not provided, this module will add a default cache policy using other provided inputs.
+    EOT
 }
 
 variable "default_ttl" {
@@ -361,12 +370,11 @@ variable "ordered_cache" {
     }))
   }))
   default     = []
-  description = <<DESCRIPTION
-An ordered list of cache behaviors resource for this distribution. List from top to bottom in order of precedence. The topmost cache behavior will have precedence 0.
-The fields can be described by the other variables in this file. For example, the field 'lambda_function_association' in this object has
-a description in var.lambda_function_association variable earlier in this file. The only difference is that fields on this object are in ordered caches, whereas the rest
-of the vars in this file apply only to the default cache. Put value `""` on field `target_origin_id` to specify default s3 bucket origin.
-DESCRIPTION
+  description = <<-EOT
+    An ordered list of [cache behaviors](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/cloudfront_distribution#cache-behavior-arguments) resource for this distribution.
+    List in order of precedence (first match wins). This is in addition to the default cache policy.
+    Set `target_origin_id` to `""` to specify the S3 bucket origin created by this module.
+    EOT
 }
 
 variable "custom_origins" {
@@ -388,7 +396,25 @@ variable "custom_origins" {
     })
   }))
   default     = []
-  description = "One or more custom origins for this distribution (multiples allowed). See documentation for configuration options description https://www.terraform.io/docs/providers/aws/r/cloudfront_distribution.html#origin-arguments"
+  description = <<-EOT
+    A list of additional custom website [origins](https://www.terraform.io/docs/providers/aws/r/cloudfront_distribution.html#origin-arguments) for this distribution.
+    EOT
+}
+
+variable "s3_origins" {
+  type = list(object({
+    domain_name = string
+    origin_id   = string
+    origin_path = string
+    s3_origin_config = object({
+      origin_access_identity = string
+    })
+  }))
+  default     = []
+  description = <<-EOT
+    A list of S3 [origins](https://www.terraform.io/docs/providers/aws/r/cloudfront_distribution.html#origin-arguments) (in addition to the one created by this module) for this distribution.
+    S3 buckets configured as websites are `custom_origins`, not `s3_origins`.
+    EOT
 }
 
 variable "s3_origins" {
@@ -411,13 +437,31 @@ DESCRIPTION
 variable "website_enabled" {
   type        = bool
   default     = false
-  description = "Set to true to use an S3 static website as origin"
+  description = <<-EOT
+    Set to true to enable the created S3 bucket to serve as a website independently of Cloudfront,
+    and to use that website as the origin. See the README for details and caveats. See also `s3_website_password_enabled`.
+    EOT
 }
 
 variable "versioning_enabled" {
   type        = bool
   default     = true
   description = "When set to 'true' the s3 origin bucket will have versioning enabled"
+}
+
+variable "deployment_principal_arns" {
+  type        = map(list(string))
+  default     = {}
+  description = <<-EOT
+    (Optional) Map of IAM Principal ARNs to lists of S3 path prefixes to grant `deployment_actions` permissions.
+    Resource list will include the bucket itself along with all the prefixes.
+    EOT
+}
+
+variable "deployment_actions" {
+  type        = list(string)
+  default     = ["s3:PutObject", "s3:PutObjectAcl", "s3:GetObject", "s3:DeleteObject", "s3:ListBucket", "s3:ListBucketMultipartUploads", "s3:GetBucketLocation", "s3:AbortMultipartUpload"]
+  description = "List of actions to permit `deployment_principal_arns` to perform"
 }
 
 variable "cloudfront_origin_access_identity_iam_arn" {
@@ -466,5 +510,15 @@ variable "access_log_bucket_name" {
 variable "distribution_enabled" {
   type        = bool
   default     = true
-  description = "Set to `true` if you want CloudFront to begin processing requests as soon as the distribution is created, or to false if you do not want CloudFront to begin processing requests after the distribution is created."
+  description = "Set to `false` to create the distribution but still prevent CloudFront from serving requests."
+}
+
+variable "s3_website_password_enabled" {
+  type        = bool
+  default     = false
+  description = <<-EOT
+    If set to true, and `website_enabled` is also true, a password will be required in the `Referrer` field of the
+    HTTP request in order to access the website, and Cloudfront will be configured to pass this password in its requests.
+    This will make it much harder for people to bypass Cloudfront and access the S3 website directly via its website endpoint.
+    EOT
 }
