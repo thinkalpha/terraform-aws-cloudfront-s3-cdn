@@ -63,7 +63,7 @@ usage: |-
 
   For automated tests of the complete example using [bats](https://github.com/bats-core/bats-core) and [Terratest](https://github.com/gruntwork-io/terratest) (which tests and deploys the example on AWS), see [test](test).
 
-  This will create a new s3 bucket `eg-prod-app` for a cloudfront cdn, and allow `principal1` to upload to
+  The following will create a new s3 bucket `eg-prod-app` for a cloudfront cdn, and allow `principal1` to upload to
   `prefix1` and `prefix2`, while allowing `principal2` to manage the whole bucket.
 
   ```hcl
@@ -80,13 +80,13 @@ usage: |-
     parent_zone_name  = "cloudposse.com"
 
     deployment_principal_arns = {
-      "arn:aws:s3:::principal1" = ["prefix1/", "prefix2/"]
-      "arn:aws:s3:::principal2" = [""]
+      "arn:aws:iam::123456789012:role/principal1" = ["prefix1/", "prefix2/"]
+      "arn:aws:iam::123456789012:role/principal2" = [""]
     }
   }
   ```
 
-  This will reuse an existing s3 bucket `eg-prod-app` for a cloudfront cdn.
+  The following will reuse an existing s3 bucket `eg-prod-app` for a cloudfront cdn.
 
   ```hcl
   module "cdn" {
@@ -98,6 +98,47 @@ usage: |-
     aliases           = ["assets.cloudposse.com"]
     dns_alias_enabled = true
     parent_zone_name  = "cloudposse.com"
+  }
+  ```
+
+  The following will create an Origin Group with the origin created by this module as a primary origin and an additional
+  S3 bucket as a failover origin.
+
+  ```hcl
+  module "s3_bucket" {
+    source  = "cloudposse/s3-bucket/aws"
+    # Cloud Posse recommends pinning every module to a specific version
+    # version = "x.x.x"
+
+    attributes = ["failover-assets"]
+  }
+
+  module "cdn" {
+    source = "cloudposse/cloudfront-s3-cdn/aws"
+    # Cloud Posse recommends pinning every module to a specific version
+    # version = "x.x.x"
+
+    aliases           = ["assets.cloudposse.com"]
+    dns_alias_enabled = true
+    parent_zone_name  = "cloudposse.com"
+    s3_origins = {
+      domain_name = module.s3_bucket.bucket_regional_domain_name
+      origin_id   = module.s3_bucket.bucket_id
+      origin_path = null
+      s3_origin_config = {
+        origin_access_identity = null # will get translated to the origin_access_identity used by the origin created by this module.
+      }
+    }
+    origin_groups = {
+      primary_origin_id  = null # will get translated to the origin id of the origin created by this module.
+      failover_origin_id = module.s3_bucket.bucket_id
+      failover_criteria  = [
+        403,
+        404,
+        500,
+        502
+      ]
+    }
   }
   ```
 
